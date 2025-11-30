@@ -2,12 +2,14 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_USER          = credentials('docker-user')      // usernamePassword credential
+        DOCKER_USER          = credentials('docker-user')
         DOCKER_PASS          = credentials('docker-pass')
-        AZ_CLIENT_ID         = credentials('AZURE_CLIENT_ID')      // secret text
+
+        AZ_CLIENT_ID         = credentials('AZURE_CLIENT_ID')
         AZ_CLIENT_SECRET     = credentials('AZURE_CLIENT_SECRET')
         AZ_TENANT_ID         = credentials('AZURE_TENANT_ID')
         AZ_SUBSCRIPTION_ID   = credentials('AZURE_SUBSCRIPTION_ID')
+
         IMAGE_NAME           = "vignesg043/node-demo"
         IMAGE_TAG            = "latest"
         RESOURCE_GROUP       = "node-rg"
@@ -53,16 +55,21 @@ pipeline {
         stage('Deploy to ACI') {
             steps {
                 bat """
+                    REM Create RG (if already exists, ignore error)
                     az group create --name %RESOURCE_GROUP% --location %LOCATION%
-                    az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes
+
+                    REM Delete old container if exists
+                    az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes --no-wait
+
+                    REM Create new container
                     az container create ^
-                      --resource-group %RESOURCE_GROUP% ^
-                      --name %CONTAINER_NAME% ^
-                      --image %IMAGE_NAME%:%IMAGE_TAG% ^
-                      --dns-name-label node%RANDOM% ^
-                      --ports %PORT% ^
-                      --registry-username %DOCKER_USER% ^
-                      --registry-password %DOCKER_PASS%
+                        --resource-group %RESOURCE_GROUP% ^
+                        --name %CONTAINER_NAME% ^
+                        --image %IMAGE_NAME%:%IMAGE_TAG% ^
+                        --dns-name-label node%RANDOM% ^
+                        --ports %PORT% ^
+                        --registry-username %DOCKER_USER% ^
+                        --registry-password %DOCKER_PASS%
                 """
             }
         }
@@ -70,7 +77,10 @@ pipeline {
         stage('Get App URL') {
             steps {
                 bat """
-                    az container show --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --query ipAddress.fqdn -o tsv
+                    az container show ^
+                        --resource-group %RESOURCE_GROUP% ^
+                        --name %CONTAINER_NAME% ^
+                        --query ipAddress.fqdn -o tsv
                 """
             }
         }
