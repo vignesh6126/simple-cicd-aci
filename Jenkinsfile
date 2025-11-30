@@ -36,7 +36,7 @@ pipeline {
         stage('Login & Push to Docker Hub') {
             steps {
                 bat """
-                    docker login -u %DOCKER_USER% -p %DOCKER_PASS%
+                    echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
                     docker push %IMAGE_NAME%:%IMAGE_TAG%
                 """
             }
@@ -80,7 +80,8 @@ pipeline {
             steps {
                 bat """
                     echo "Waiting for container to be ready..."
-                    az container wait --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --created
+                    timeout /t 60 /nobreak
+                    az container show --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --query provisioningState -o tsv
                 """
             }
         }
@@ -138,10 +139,6 @@ pipeline {
     post {
         always {
             echo "Build completed - ${currentBuild.result}"
-            bat """
-                echo "Cleaning up workspace..."
-                docker system prune -f
-            """
         }
         success {
             echo "Deployment successful! App URL: ${env.APP_URL}"
@@ -149,7 +146,7 @@ pipeline {
         failure {
             echo "Deployment failed! Check Azure container logs:"
             bat """
-                az container logs --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME%
+                az container logs --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% || echo "Container not found or logs unavailable"
             """
         }
     }
