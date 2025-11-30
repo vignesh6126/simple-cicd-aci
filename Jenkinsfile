@@ -4,10 +4,10 @@ pipeline {
     environment {
         DOCKER_USER          = credentials('docker-user')      // usernamePassword credential
         DOCKER_PASS          = credentials('docker-pass')
-        AZ_CLIENT_ID         = credentials('az-client-id')      // secret text
-        AZ_CLIENT_SECRET     = credentials('az-client-secret')
-        AZ_TENANT_ID         = credentials('az-tenant-id')
-        AZ_SUBSCRIPTION_ID   = credentials('az-subscription-id')
+        AZ_CLIENT_ID         = credentials('AZURE_CLIENT_ID')      // secret text
+        AZ_CLIENT_SECRET     = credentials('AZURE_CLIENT_SECRET')
+        AZ_TENANT_ID         = credentials('AZURE_TENANT_ID')
+        AZ_SUBSCRIPTION_ID   = credentials('AZURE_SUBSCRIPTION_ID')
         IMAGE_NAME           = "vignesg043/node-demo"
         IMAGE_TAG            = "latest"
         RESOURCE_GROUP       = "node-rg"
