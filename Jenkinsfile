@@ -13,12 +13,13 @@ pipeline {
         IMAGE_NAME           = "vignesg043/node-demo"
         IMAGE_TAG            = "latest"
         RESOURCE_GROUP       = "node-rg"
-        CONTAINER_NAME       = "node-app-${BUILD_NUMBER}"
+        CONTAINER_NAME       = "node-app"
         LOCATION             = "eastus"
         PORT                 = "3000"
     }
 
     stages {
+
         stage('Install Dependencies') {
             steps {
                 bat "npm install"
@@ -27,9 +28,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                bat """
-                    docker build -t %IMAGE_NAME%:%IMAGE_TAG% .
-                """
+                bat "docker build -t %IMAGE_NAME%:%IMAGE_TAG% ."
             }
         }
 
@@ -54,101 +53,36 @@ pipeline {
         stage('Deploy to ACI') {
             steps {
                 bat """
-                    echo "Creating resource group if not exists..."
+                    echo ------------------------------
+                    echo CREATING RESOURCE GROUP
+                    echo ------------------------------
                     az group create --name %RESOURCE_GROUP% --location %LOCATION%
-                    
-                    echo "Deploying container instance..."
-                    az container create ^
-                        --resource-group %RESOURCE_GROUP% ^
-                        --name %CONTAINER_NAME% ^
-                        --image %IMAGE_NAME%:%IMAGE_TAG% ^
-                        --dns-name-label node-app-%BUILD_NUMBER% ^
-                        --ports %PORT% ^
-                        --registry-username %DOCKER_USER% ^
-                        --registry-password %DOCKER_PASS% ^
-                        --environment-variables PORT=%PORT% ^
-                        --restart-policy Always ^
-                        --cpu 1 ^
-                        --memory 1
-                    
-                    echo "Container deployment initiated..."
-                """
-            }
-        }
 
-        stage('Wait for Deployment') {
-            steps {
-                bat """
-                    echo "Waiting for container to be ready..."
-                    ping -n 60 127.0.0.1 > nul
-                    echo "Checking container status..."
-                    az container show --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --query provisioningState -o tsv
+                    echo ------------------------------
+                    echo DELETING OLD CONTAINER
+                    echo ------------------------------
+                    az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes --no-wait
+
+                    echo ------------------------------
+                    echo CREATING NEW CONTAINER
+                    echo ------------------------------
+
+                    az container create --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --image %IMAGE_NAME%:%IMAGE_TAG% --dns-name-label node%RANDOM% --ports %PORT% --registry-username %DOCKER_USER% --registry-password %DOCKER_PASS% --restart-policy Always
+
+                    echo ------------------------------
+                    echo CONTAINER DEPLOY COMMAND COMPLETED
+                    echo ------------------------------
                 """
             }
         }
 
         stage('Get App URL') {
             steps {
-                script {
-                    def fqdn = bat(
-                        script: """
-                            az container show ^
-                                --resource-group %RESOURCE_GROUP% ^
-                                --name %CONTAINER_NAME% ^
-                                --query ipAddress.fqdn -o tsv
-                        """,
-                        returnStdout: true
-                    ).trim()
-                    
-                    echo "Application URL: http://${fqdn}:${PORT}"
-                    env.APP_URL = "http://${fqdn}:${PORT}"
-                }
+                bat """
+                    echo FETCHING APP URL...
+                    az container show --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --query ipAddress.fqdn -o tsv
+                """
             }
-        }
-        
-        stage('Health Check') {
-            steps {
-                script {
-                    timeout(time: 3, unit: 'MINUTES') {
-                        waitUntil {
-                            try {
-                                def response = bat(
-                                    script: "curl -s -o nul -w \"%%{http_code}\" %APP_URL%/ || echo 000",
-                                    returnStdout: true
-                                ).trim()
-                                
-                                if (response == "200") {
-                                    echo "Health check passed: HTTP 200"
-                                    return true
-                                } else {
-                                    echo "Health check: HTTP ${response}. Retrying..."
-                                    sleep 15
-                                    return false
-                                }
-                            } catch (Exception e) {
-                                echo "Health check error: ${e}. Retrying..."
-                                sleep 15
-                                return false
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    post {
-        always {
-            echo "Build completed - ${currentBuild.result}"
-        }
-        success {
-            echo "Deployment successful! App URL: ${env.APP_URL}"
-        }
-        failure {
-            echo "Deployment failed! Check Azure container logs:"
-            bat """
-                az container logs --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% || echo "Container not found or logs unavailable"
-            """
         }
     }
 }
