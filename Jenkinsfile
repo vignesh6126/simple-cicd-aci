@@ -14,7 +14,7 @@ pipeline {
         IMAGE_TAG            = "latest"
         RESOURCE_GROUP       = "node-rg"
         CONTAINER_NAME       = "node-app"
-        LOCATION             = "eastus"
+        LOCATION             = "eastus2"
         PORT                 = "3000"
     }
 
