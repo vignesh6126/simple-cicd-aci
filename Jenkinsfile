@@ -4,12 +4,10 @@ pipeline {
     environment {
         DOCKER_USER          = credentials('docker-user')
         DOCKER_PASS          = credentials('docker-pass')
-
         AZ_CLIENT_ID         = credentials('AZURE_CLIENT_ID')
         AZ_CLIENT_SECRET     = credentials('AZURE_CLIENT_SECRET')
         AZ_TENANT_ID         = credentials('AZURE_TENANT_ID')
         AZ_SUBSCRIPTION_ID   = credentials('AZURE_SUBSCRIPTION_ID')
-
         IMAGE_NAME           = "vignesg043/node-demo"
         IMAGE_TAG            = "latest"
         RESOURCE_GROUP       = "node-rg"
@@ -27,9 +25,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                bat """
-                    docker build -t %IMAGE_NAME%:%IMAGE_TAG% .
-                """
+                bat "docker build -t %IMAGE_NAME%:%IMAGE_TAG% ."
             }
         }
 
@@ -54,79 +50,18 @@ pipeline {
         stage('Deploy to ACI') {
             steps {
                 bat """
-                    echo ------------------------------
-                    echo CREATING RESOURCE GROUP
-                    echo ------------------------------
                     az group create --name %RESOURCE_GROUP% --location %LOCATION%
-                    
-                    echo ------------------------------
-                    echo DEPLOYING CONTAINER INSTANCE
-                    echo ------------------------------
-                    az container create ^
-                        --resource-group %RESOURCE_GROUP% ^
-                        --name %CONTAINER_NAME% ^
-                        --image %IMAGE_NAME%:%IMAGE_TAG% ^
-                        --dns-name-label node-app-%BUILD_NUMBER% ^
-                        --ports %PORT% ^
-                        --registry-username %DOCKER_USER% ^
-                        --registry-password %DOCKER_PASS% ^
-                        --environment-variables PORT=%PORT% ^
-                        --restart-policy Always ^
-                        --cpu 1 ^
-                        --memory 1
-                    
-                    echo "Container deployment completed!"
-                """
-            }
-        }
-
-        stage('Wait for Container') {
-            steps {
-                bat """
-                    echo "Waiting for container to be ready..."
-                    ping -n 30 127.0.0.1 > nul
-                    echo "Container should be ready now"
+                    az container create --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --image %IMAGE_NAME%:%IMAGE_TAG% --dns-name-label node-app-%BUILD_NUMBER% --ports %PORT% --registry-username %DOCKER_USER% --registry-password %DOCKER_PASS% --environment-variables PORT=%PORT% --restart-policy Always --cpu 1 --memory 1
                 """
             }
         }
 
         stage('Get App URL') {
             steps {
-                script {
-                    def fqdn = bat(
-                        script: """
-                            az container show ^
-                                --resource-group %RESOURCE_GROUP% ^
-                                --name %CONTAINER_NAME% ^
-                                --query ipAddress.fqdn -o tsv
-                        """,
-                        returnStdout: true
-                    ).trim()
-                    
-                    if (fqdn) {
-                        echo "Application URL: http://${fqdn}:${PORT}"
-                        env.APP_URL = "http://${fqdn}:${PORT}"
-                    } else {
-                        error "Failed to get application URL"
-                    }
-                }
+                bat """
+                    az container show --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --query ipAddress.fqdn -o tsv
+                """
             }
-        }
-    }
-
-    post {
-        always {
-            echo "Build completed - ${currentBuild.result}"
-        }
-        success {
-            echo "Deployment successful! App URL: ${env.APP_URL}"
-        }
-        failure {
-            echo "Deployment failed! Checking container status..."
-            bat """
-                echo "Listing all containers in resource group:"
-                az container list --resource-group %RESOURCE_GROUP% --output table
-            """
         }
     }
 }
