@@ -13,13 +13,12 @@ pipeline {
         IMAGE_NAME           = "vignesg043/node-demo"
         IMAGE_TAG            = "latest"
         RESOURCE_GROUP       = "node-rg"
-        CONTAINER_NAME       = "node-app"
+        CONTAINER_NAME       = "node-app-${BUILD_NUMBER}"
         LOCATION             = "eastus"
         PORT                 = "3000"
     }
 
     stages {
-
         stage('Install Dependencies') {
             steps {
                 bat "npm install"
@@ -28,7 +27,9 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                bat "docker build -t %IMAGE_NAME%:%IMAGE_TAG% ."
+                bat """
+                    docker build -t %IMAGE_NAME%:%IMAGE_TAG% .
+                """
             }
         }
 
@@ -57,32 +58,75 @@ pipeline {
                     echo CREATING RESOURCE GROUP
                     echo ------------------------------
                     az group create --name %RESOURCE_GROUP% --location %LOCATION%
+                    
+                    echo ------------------------------
+                    echo DEPLOYING CONTAINER INSTANCE
+                    echo ------------------------------
+                    az container create ^
+                        --resource-group %RESOURCE_GROUP% ^
+                        --name %CONTAINER_NAME% ^
+                        --image %IMAGE_NAME%:%IMAGE_TAG% ^
+                        --dns-name-label node-app-%BUILD_NUMBER% ^
+                        --ports %PORT% ^
+                        --registry-username %DOCKER_USER% ^
+                        --registry-password %DOCKER_PASS% ^
+                        --environment-variables PORT=%PORT% ^
+                        --restart-policy Always ^
+                        --cpu 1 ^
+                        --memory 1
+                    
+                    echo "Container deployment completed!"
+                """
+            }
+        }
 
-                    echo ------------------------------
-                    echo DELETING OLD CONTAINER
-                    echo ------------------------------
-                    az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes --no-wait
-
-                    echo ------------------------------
-                    echo CREATING NEW CONTAINER
-                    echo ------------------------------
-
-                    az container create --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --image %IMAGE_NAME%:%IMAGE_TAG% --dns-name-label node%RANDOM% --ports %PORT% --registry-username %DOCKER_USER% --registry-password %DOCKER_PASS% --restart-policy Always
-
-                    echo ------------------------------
-                    echo CONTAINER DEPLOY COMMAND COMPLETED
-                    echo ------------------------------
+        stage('Wait for Container') {
+            steps {
+                bat """
+                    echo "Waiting for container to be ready..."
+                    ping -n 30 127.0.0.1 > nul
+                    echo "Container should be ready now"
                 """
             }
         }
 
         stage('Get App URL') {
             steps {
-                bat """
-                    echo FETCHING APP URL...
-                    az container show --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --query ipAddress.fqdn -o tsv
-                """
+                script {
+                    def fqdn = bat(
+                        script: """
+                            az container show ^
+                                --resource-group %RESOURCE_GROUP% ^
+                                --name %CONTAINER_NAME% ^
+                                --query ipAddress.fqdn -o tsv
+                        """,
+                        returnStdout: true
+                    ).trim()
+                    
+                    if (fqdn) {
+                        echo "Application URL: http://${fqdn}:${PORT}"
+                        env.APP_URL = "http://${fqdn}:${PORT}"
+                    } else {
+                        error "Failed to get application URL"
+                    }
+                }
             }
+        }
+    }
+
+    post {
+        always {
+            echo "Build completed - ${currentBuild.result}"
+        }
+        success {
+            echo "Deployment successful! App URL: ${env.APP_URL}"
+        }
+        failure {
+            echo "Deployment failed! Checking container status..."
+            bat """
+                echo "Listing all containers in resource group:"
+                az container list --resource-group %RESOURCE_GROUP% --output table
+            """
         }
     }
 }
