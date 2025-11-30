@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_CREDS        = credentials('docker-hub')
+        DOCKER_CREDS        = credentials('docker-user')
 
         AZ_CLIENT_ID         = credentials('AZURE_CLIENT_ID')
         AZ_CLIENT_SECRET     = credentials('AZURE_CLIENT_SECRET')
