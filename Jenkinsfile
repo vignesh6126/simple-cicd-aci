@@ -80,7 +80,8 @@ pipeline {
             steps {
                 bat """
                     echo "Waiting for container to be ready..."
-                    timeout /t 60 /nobreak
+                    ping -n 60 127.0.0.1 > nul
+                    echo "Checking container status..."
                     az container show --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --query provisioningState -o tsv
                 """
             }
