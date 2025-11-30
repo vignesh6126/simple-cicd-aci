@@ -50,22 +50,18 @@ pipeline {
             }
         }
 
-        stage('Deploy to ACI') {
-            steps {
-                bat """
-                    echo CREATING RESOURCE GROUP...
-                    az group create --name %RESOURCE_GROUP% --location %LOCATION%
+       stage('Deploy to ACI') {
+    steps {
+        bat "echo CREATING RESOURCE GROUP..."
+        bat "az group create --name %RESOURCE_GROUP% --location %LOCATION%"
 
-                    echo DELETING OLD CONTAINER IF EXISTS...
-                    az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes || echo no-old-container
+        bat "echo DELETING OLD CONTAINER..."
+        bat "az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes || echo no-old-container"
 
-                    echo CREATING NEW CONTAINER...
-                    az container create --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --image %IMAGE_NAME%:%IMAGE_TAG% --dns-name-label node%RANDOM% --ports %PORT% --registry-username %DOCKER_USER% --registry-password %DOCKER_PASS%
-
-                    echo DEPLOY COMMAND EXECUTED.
-                """
-            }
-        }
+        bat "echo CREATING NEW CONTAINER..."
+        bat "az container create --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --image %IMAGE_NAME%:%IMAGE_TAG% --dns-name-label node%RANDOM% --ports %PORT% --registry-username %DOCKER_USER% --registry-password %DOCKER_PASS%"
+    }
+}
 
         stage('Get App URL') {
             steps {
