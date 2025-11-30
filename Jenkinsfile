@@ -28,9 +28,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                bat """
-                    docker build -t %IMAGE_NAME%:%IMAGE_TAG% .
-                """
+                bat "docker build -t %IMAGE_NAME%:%IMAGE_TAG% ."
             }
         }
 
@@ -53,26 +51,20 @@ pipeline {
         }
 
         stage('Deploy to ACI') {
-    steps {
-        bat """
-            az group create --name %RESOURCE_GROUP% --location %LOCATION%
+            steps {
+                bat """
+                    az group create --name %RESOURCE_GROUP% --location %LOCATION%
 
-            az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes --no-wait
+                    az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes --no-wait
 
-            az container create --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --image %IMAGE_NAME%:%IMAGE_TAG% --dns-name-label node%RANDOM% --ports %PORT% --registry-username %DOCKER_USER% --registry-password %DOCKER_PASS%
-        """
-    }
-}
-
+                    az container create --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --image %IMAGE_NAME%:%IMAGE_TAG% --dns-name-label node%RANDOM% --ports %PORT% --registry-username %DOCKER_USER% --registry-password %DOCKER_PASS%
+                """
+            }
+        }
 
         stage('Get App URL') {
             steps {
-                bat """
-                    az container show ^
-                        --resource-group %RESOURCE_GROUP% ^
-                        --name %CONTAINER_NAME% ^
-                        --query ipAddress.fqdn -o tsv
-                """
+                bat "az container show --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --query ipAddress.fqdn -o tsv"
             }
         }
     }
