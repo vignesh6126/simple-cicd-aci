@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_USER          = credentials('docker-user')
-        DOCKER_PASS          = credentials('docker-pass')
+        DOCKER_CREDS        = credentials('docker-hub')
 
         AZ_CLIENT_ID         = credentials('AZURE_CLIENT_ID')
         AZ_CLIENT_SECRET     = credentials('AZURE_CLIENT_SECRET')
@@ -35,7 +34,7 @@ pipeline {
         stage('Login & Push to Docker Hub') {
             steps {
                 bat """
-                    echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
+                    echo %DOCKER_CREDS_PSW% | docker login -u %DOCKER_CREDS_USR% --password-stdin
                     docker push %IMAGE_NAME%:%IMAGE_TAG%
                 """
             }
@@ -50,23 +49,26 @@ pipeline {
             }
         }
 
-       stage('Deploy to ACI') {
-    steps {
-        bat "echo CREATING RESOURCE GROUP..."
-        bat "az group create --name %RESOURCE_GROUP% --location %LOCATION%"
-
-        bat "echo DELETING OLD CONTAINER..."
-        bat "az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes || echo no-old-container"
-
-        bat "echo CREATING NEW CONTAINER..."
-        bat "az container create --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --image %IMAGE_NAME%:%IMAGE_TAG% --dns-name-label node%RANDOM% --ports %PORT% --registry-username %DOCKER_USER% --registry-password %DOCKER_PASS%"
-    }
-}
+        stage('Deploy to ACI') {
+            steps {
+                bat "az group create --name %RESOURCE_GROUP% --location %LOCATION%"
+                bat "az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes || echo 'No old container'"
+                bat """
+                    az container create ^
+                        --resource-group %RESOURCE_GROUP% ^
+                        --name %CONTAINER_NAME% ^
+                        --image %IMAGE_NAME%:%IMAGE_TAG% ^
+                        --dns-name-label node%RANDOM% ^
+                        --ports %PORT% ^
+                        --registry-username %DOCKER_CREDS_USR% ^
+                        --registry-password %DOCKER_CREDS_PSW%
+                """
+            }
+        }
 
         stage('Get App URL') {
             steps {
                 bat """
-                    echo FETCHING PUBLIC URL...
                     az container show --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --query ipAddress.fqdn -o tsv
                 """
             }
