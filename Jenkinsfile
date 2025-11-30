@@ -53,26 +53,26 @@ pipeline {
         }
 
         stage('Deploy to ACI') {
-            steps {
-                bat """
-                    REM Create RG (if already exists, ignore error)
-                    az group create --name %RESOURCE_GROUP% --location %LOCATION%
+    steps {
+        bat """
+            REM Create RG if not exists
+            az group create --name %RESOURCE_GROUP% --location %LOCATION%
 
-                    REM Delete old container if exists
-                    az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes --no-wait
+            REM Delete old container if exists
+            az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes --no-wait
 
-                    REM Create new container
-                    az container create ^
-                        --resource-group %RESOURCE_GROUP% ^
-                        --name %CONTAINER_NAME% ^
-                        --image %IMAGE_NAME%:%IMAGE_TAG% ^
-                        --dns-name-label node%RANDOM% ^
-                        --ports %PORT% ^
-                        --registry-username %DOCKER_USER% ^
-                        --registry-password %DOCKER_PASS%
-                """
-            }
-        }
+            REM Create new container
+            az container create ^
+                --resource-group %RESOURCE_GROUP% ^
+                --name %CONTAINER_NAME% ^
+                --image %IMAGE_NAME%:%IMAGE_TAG% ^
+                --dns-name-label node%RANDOM% ^
+                --ports %PORT% ^
+                --registry-username %DOCKER_USER% ^
+                --registry-password %DOCKER_PASS%
+        """
+    }
+}
 
         stage('Get App URL') {
             steps {
