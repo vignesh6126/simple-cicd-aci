@@ -3,12 +3,10 @@ pipeline {
 
     environment {
         DOCKER_CREDS        = credentials('docker-user')
-
         AZ_CLIENT_ID         = credentials('AZURE_CLIENT_ID')
         AZ_CLIENT_SECRET     = credentials('AZURE_CLIENT_SECRET')
         AZ_TENANT_ID         = credentials('AZURE_TENANT_ID')
         AZ_SUBSCRIPTION_ID   = credentials('AZURE_SUBSCRIPTION_ID')
-
         IMAGE_NAME           = "vignesg043/node-demo"
         IMAGE_TAG            = "latest"
         RESOURCE_GROUP       = "node-rg"
@@ -18,7 +16,6 @@ pipeline {
     }
 
     stages {
-
         stage('Install Dependencies') {
             steps {
                 bat "npm install"
@@ -60,6 +57,7 @@ pipeline {
                         --image %IMAGE_NAME%:%IMAGE_TAG% ^
                         --dns-name-label node%RANDOM% ^
                         --ports %PORT% ^
+                        --os-type Linux ^
                         --registry-username %DOCKER_CREDS_USR% ^
                         --registry-password %DOCKER_CREDS_PSW%
                 """
