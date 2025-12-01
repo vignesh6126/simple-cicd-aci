@@ -58,6 +58,8 @@ pipeline {
                         --dns-name-label node%RANDOM% ^
                         --ports %PORT% ^
                         --os-type Linux ^
+                        --cpu 1 ^
+                        --memory 1 ^
                         --registry-username %DOCKER_CREDS_USR% ^
                         --registry-password %DOCKER_CREDS_PSW%
                 """
