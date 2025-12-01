@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_CREDS        = credentials('docker-user')
+        DOCKER_USER          = credentials('docker-user')
+        DOCKER_PASS          = credentials('docker-pass')
 
         AZ_CLIENT_ID         = credentials('AZURE_CLIENT_ID')
         AZ_CLIENT_SECRET     = credentials('AZURE_CLIENT_SECRET')
@@ -11,9 +12,11 @@ pipeline {
 
         IMAGE_NAME           = "vignesg043/node-demo"
         IMAGE_TAG            = "latest"
+
         RESOURCE_GROUP       = "node-rg"
         CONTAINER_NAME       = "node-app"
-        LOCATION             = "centralindia"
+
+        LOCATION             = "centralindia"     // Works for Azure for Students
         PORT                 = "3000"
     }
 
@@ -27,14 +30,16 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                bat "docker build -t %IMAGE_NAME%:%IMAGE_TAG% ."
+                bat """
+                    docker build -t %IMAGE_NAME%:%IMAGE_TAG% .
+                """
             }
         }
 
         stage('Login & Push to Docker Hub') {
             steps {
                 bat """
-                    echo %DOCKER_CREDS_PSW% | docker login -u %DOCKER_CREDS_USR% --password-stdin
+                    echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
                     docker push %IMAGE_NAME%:%IMAGE_TAG%
                 """
             }
@@ -50,29 +55,35 @@ pipeline {
         }
 
         stage('Deploy to ACI') {
-    steps {
-        bat """
-            az group create --name %RESOURCE_GROUP% --location %LOCATION%
+            steps {
+                bat """
+                    echo Creating resource group...
+                    az group create --name %RESOURCE_GROUP% --location %LOCATION%
 
-            az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes --no-wait  || echo No previous container
+                    echo Deleting existing container if exists...
+                    az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes --no-wait  || echo No existing container
 
-            az container create ^
-                --resource-group %RESOURCE_GROUP% ^
-                --name %CONTAINER_NAME% ^
-                --image %IMAGE_NAME%:%IMAGE_TAG% ^
-                --dns-name-label node%RANDOM% ^
-                --ports %PORT% ^
-                --registry-username %DOCKER_USER% ^
-                --registry-password %DOCKER_PASS% ^
-                --os-type Linux
-        """
-    }
-}
+                    echo Creating ACI container...
+                    az container create ^
+                        --resource-group %RESOURCE_GROUP% ^
+                        --name %CONTAINER_NAME% ^
+                        --image %IMAGE_NAME%:%IMAGE_TAG% ^
+                        --dns-name-label node%RANDOM% ^
+                        --ports %PORT% ^
+                        --registry-username %DOCKER_USER% ^
+                        --registry-password %DOCKER_PASS% ^
+                        --os-type Linux
+                """
+            }
+        }
 
         stage('Get App URL') {
             steps {
                 bat """
-                    az container show --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --query ipAddress.fqdn -o tsv
+                    az container show ^
+                        --resource-group %RESOURCE_GROUP% ^
+                        --name %CONTAINER_NAME% ^
+                        --query ipAddress.fqdn -o tsv
                 """
             }
         }
