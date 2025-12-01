@@ -2,45 +2,31 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_USER          = credentials('docker-user')
-        DOCKER_PASS          = credentials('docker-pass')
-
-        AZ_CLIENT_ID         = credentials('AZURE_CLIENT_ID')
-        AZ_CLIENT_SECRET     = credentials('AZURE_CLIENT_SECRET')
-        AZ_TENANT_ID         = credentials('AZURE_TENANT_ID')
-        AZ_SUBSCRIPTION_ID   = credentials('AZURE_SUBSCRIPTION_ID')
-
-        IMAGE_NAME           = "vignesg043/node-demo"
-        IMAGE_TAG            = "latest"
-
-        RESOURCE_GROUP       = "node-rg"
-        CONTAINER_NAME       = "node-app"
-
-        LOCATION             = "centralindia"     // Works for Azure for Students
-        PORT                 = "3000"
+        DOCKER_CREDS = credentials('docker-id')   // <-- Your Docker Hub credential
+        AZ_CLIENT_ID = credentials('AZ_CLIENT_ID')
+        AZ_CLIENT_SECRET = credentials('AZ_CLIENT_SECRET')
+        AZ_TENANT_ID = credentials('AZ_TENANT_ID')
     }
 
     stages {
 
         stage('Install Dependencies') {
             steps {
-                bat "npm install"
+                bat 'npm install'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                bat """
-                    docker build -t %IMAGE_NAME%:%IMAGE_TAG% .
-                """
+                bat 'docker build -t vignesg043/node-demo:latest .'
             }
         }
 
         stage('Login & Push to Docker Hub') {
             steps {
                 bat """
-                    echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
-                    docker push %IMAGE_NAME%:%IMAGE_TAG%
+                    echo ${DOCKER_CREDS_PSW} | docker login -u ${DOCKER_CREDS_USR} --password-stdin
+                    docker push vignesg043/node-demo:latest
                 """
             }
         }
@@ -48,8 +34,7 @@ pipeline {
         stage('Azure Login') {
             steps {
                 bat """
-                    az login --service-principal -u %AZ_CLIENT_ID% -p %AZ_CLIENT_SECRET% --tenant %AZ_TENANT_ID%
-                    az account set --subscription %AZ_SUBSCRIPTION_ID%
+                    az login --service-principal -u ${AZ_CLIENT_ID} -p ${AZ_CLIENT_SECRET} --tenant ${AZ_TENANT_ID}
                 """
             }
         }
@@ -57,34 +42,26 @@ pipeline {
         stage('Deploy to ACI') {
             steps {
                 bat """
-                    echo Creating resource group...
-                    az group create --name %RESOURCE_GROUP% --location %LOCATION%
+                    az group create --name node-rg --location centralindia
 
-                    echo Deleting existing container if exists...
-                    az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes --no-wait  || echo No existing container
+                    az container delete --resource-group node-rg --name node-app --yes || echo 'No old container'
 
-                    echo Creating ACI container...
                     az container create ^
-                        --resource-group %RESOURCE_GROUP% ^
-                        --name %CONTAINER_NAME% ^
-                        --image %IMAGE_NAME%:%IMAGE_TAG% ^
-                        --dns-name-label node%RANDOM% ^
-                        --ports %PORT% ^
-                        --registry-username %DOCKER_USER% ^
-                        --registry-password %DOCKER_PASS% ^
-                        --os-type Linux
+                        --resource-group node-rg ^
+                        --name node-app ^
+                        --image vignesg043/node-demo:latest ^
+                        --dns-name-label node${BUILD_NUMBER} ^
+                        --ports 3000 ^
+                        --os-type Linux ^
+                        --registry-username ${DOCKER_CREDS_USR} ^
+                        --registry-password ${DOCKER_CREDS_PSW}
                 """
             }
         }
 
         stage('Get App URL') {
             steps {
-                bat """
-                    az container show ^
-                        --resource-group %RESOURCE_GROUP% ^
-                        --name %CONTAINER_NAME% ^
-                        --query ipAddress.fqdn -o tsv
-                """
+                bat 'az container show --resource-group node-rg --name node-app --query ipAddress.fqdn -o tsv'
             }
         }
     }
