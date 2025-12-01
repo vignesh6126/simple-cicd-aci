@@ -50,21 +50,24 @@ pipeline {
         }
 
         stage('Deploy to ACI') {
-            steps {
-                bat "az group create --name %RESOURCE_GROUP% --location %LOCATION%"
-                bat "az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes || echo 'No old container'"
-                bat """
-                    az container create ^
-                        --resource-group %RESOURCE_GROUP% ^
-                        --name %CONTAINER_NAME% ^
-                        --image %IMAGE_NAME%:%IMAGE_TAG% ^
-                        --dns-name-label node%RANDOM% ^
-                        --ports %PORT% ^
-                        --registry-username %DOCKER_CREDS_USR% ^
-                        --registry-password %DOCKER_CREDS_PSW%
-                """
-            }
-        }
+    steps {
+        bat """
+            az group create --name %RESOURCE_GROUP% --location %LOCATION%
+
+            az container delete --resource-group %RESOURCE_GROUP% --name %CONTAINER_NAME% --yes --no-wait  || echo No previous container
+
+            az container create ^
+                --resource-group %RESOURCE_GROUP% ^
+                --name %CONTAINER_NAME% ^
+                --image %IMAGE_NAME%:%IMAGE_TAG% ^
+                --dns-name-label node%RANDOM% ^
+                --ports %PORT% ^
+                --registry-username %DOCKER_USER% ^
+                --registry-password %DOCKER_PASS% ^
+                --os-type Linux
+        """
+    }
+}
 
         stage('Get App URL') {
             steps {
